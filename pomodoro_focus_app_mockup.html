@@ -1,27 +1,399 @@
-<div style="background: var(--surface-1); border-radius: 16px; padding: 1.5rem; max-width: 320px; margin: 0 auto;">
-  <div style="text-align: center; margin-bottom: 1rem;">
-    <span style="display: inline-block; background: var(--bg-danger); color: var(--text-danger); font-size: 13px; font-weight: 500; padding: 4px 16px; border-radius: 20px; letter-spacing: 0.5px;">FOCUS</span>
-  </div>
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+<meta name="theme-color" content="#1a1a1a">
+<title>Focus</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+  :root {
+    --focus: #D85A30;
+    --break: #1D9E75;
+    --bg: #15130f;
+    --surface: #211e18;
+    --surface2: #2c2820;
+    --text: #f1efe8;
+    --text-dim: #a09b8e;
+    --border: rgba(255,255,255,0.08);
+  }
+  html, body {
+    height: 100%;
+    background: var(--bg);
+    color: var(--text);
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    overflow: hidden;
+    user-select: none;
+    -webkit-user-select: none;
+  }
+  body {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    padding: env(safe-area-inset-top) 20px env(safe-area-inset-bottom);
+    transition: background 0.6s ease;
+  }
+  body.break { --accent: var(--break); }
+  body.focus { --accent: var(--focus); }
 
-  <div style="position: relative; width: 220px; height: 220px; margin: 0 auto 1.25rem;">
-    <svg viewBox="0 0 220 220" style="width: 100%; height: 100%;">
-      <circle cx="110" cy="110" r="100" fill="none" stroke="var(--border)" stroke-width="10"/>
-      <circle cx="110" cy="110" r="100" fill="none" stroke="#D85A30" stroke-width="10" stroke-linecap="round" stroke-dasharray="628" stroke-dashoffset="160" transform="rotate(-90 110 110)"/>
+  .mode-pill {
+    font-size: 13px;
+    font-weight: 600;
+    letter-spacing: 2px;
+    padding: 7px 22px;
+    border-radius: 20px;
+    margin-bottom: 28px;
+    transition: all 0.4s ease;
+  }
+  body.focus .mode-pill { background: rgba(216,90,48,0.18); color: var(--focus); }
+  body.break .mode-pill { background: rgba(29,158,117,0.18); color: var(--break); }
+
+  .timer-wrap { position: relative; width: 280px; height: 280px; margin-bottom: 36px; }
+  .timer-wrap svg { width: 100%; height: 100%; transform: rotate(-90deg); }
+  .ring-bg { fill: none; stroke: var(--border); stroke-width: 8; }
+  .ring-fg {
+    fill: none;
+    stroke: var(--accent);
+    stroke-width: 8;
+    stroke-linecap: round;
+    transition: stroke-dashoffset 0.3s linear, stroke 0.4s ease;
+  }
+  .timer-center {
+    position: absolute; top: 50%; left: 50%;
+    transform: translate(-50%,-50%);
+    text-align: center;
+  }
+  .time {
+    font-size: 64px;
+    font-weight: 300;
+    font-variant-numeric: tabular-nums;
+    letter-spacing: 1px;
+  }
+  .session-label { font-size: 14px; color: var(--text-dim); margin-top: 6px; }
+
+  .controls { display: flex; gap: 14px; align-items: center; margin-bottom: 30px; }
+  .btn {
+    border: none;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: transform 0.1s ease, background 0.2s ease, opacity 0.2s ease;
+    color: var(--text);
+  }
+  .btn:active { transform: scale(0.92); }
+  .btn-main {
+    background: var(--accent);
+    color: #fff;
+    height: 64px;
+    min-width: 150px;
+    border-radius: 18px;
+    font-size: 18px;
+    font-weight: 600;
+    gap: 8px;
+  }
+  .btn-icon {
+    background: var(--surface2);
+    width: 60px; height: 60px;
+    border-radius: 18px;
+    border: 0.5px solid var(--border);
+  }
+  .btn svg { width: 24px; height: 24px; }
+  .btn-main svg { width: 26px; height: 26px; }
+
+  .footer {
+    display: flex; align-items: center; justify-content: space-between;
+    width: 280px;
+    padding-top: 16px;
+    border-top: 0.5px solid var(--border);
+  }
+  .streak { font-size: 14px; color: var(--text-dim); display: flex; align-items: center; gap: 6px; }
+  .streak svg { width: 18px; height: 18px; color: var(--focus); }
+  .gear { background: none; border: none; color: var(--text-dim); cursor: pointer; display: flex; align-items: center; gap: 5px; font-size: 14px; }
+  .gear svg { width: 18px; height: 18px; }
+
+  /* Settings panel */
+  .overlay {
+    position: fixed; inset: 0;
+    background: rgba(0,0,0,0.6);
+    display: none;
+    align-items: flex-end;
+    z-index: 10;
+  }
+  .overlay.open { display: flex; }
+  .sheet {
+    background: var(--surface);
+    width: 100%;
+    border-radius: 24px 24px 0 0;
+    padding: 24px 24px calc(24px + env(safe-area-inset-bottom));
+    animation: slideUp 0.25s ease;
+  }
+  @keyframes slideUp { from { transform: translateY(100%); } to { transform: translateY(0); } }
+  .sheet h2 { font-size: 18px; font-weight: 600; margin-bottom: 20px; }
+  .setting-row { display: flex; align-items: center; justify-content: space-between; margin-bottom: 18px; }
+  .setting-row label { font-size: 15px; color: var(--text); }
+  .stepper { display: flex; align-items: center; gap: 14px; }
+  .stepper button {
+    width: 36px; height: 36px; border-radius: 10px;
+    background: var(--surface2); border: 0.5px solid var(--border);
+    color: var(--text); font-size: 20px; cursor: pointer;
+  }
+  .stepper span { font-size: 16px; min-width: 50px; text-align: center; font-variant-numeric: tabular-nums; }
+  .toggle { width: 50px; height: 30px; border-radius: 15px; background: var(--surface2); position: relative; cursor: pointer; transition: background 0.2s; border: 0.5px solid var(--border); }
+  .toggle.on { background: var(--focus); }
+  .toggle .knob { position: absolute; top: 3px; left: 3px; width: 24px; height: 24px; border-radius: 50%; background: #fff; transition: left 0.2s; }
+  .toggle.on .knob { left: 23px; }
+  .close-btn { width: 100%; height: 52px; border-radius: 14px; background: var(--surface2); border: 0.5px solid var(--border); color: var(--text); font-size: 16px; font-weight: 600; margin-top: 8px; cursor: pointer; }
+</style>
+</head>
+<body class="focus">
+
+  <div class="mode-pill" id="modePill">FOCUS</div>
+
+  <div class="timer-wrap">
+    <svg viewBox="0 0 280 280">
+      <circle class="ring-bg" cx="140" cy="140" r="130"/>
+      <circle class="ring-fg" id="ring" cx="140" cy="140" r="130"
+              stroke-dasharray="816.8" stroke-dashoffset="0"/>
     </svg>
-    <div style="position: absolute; top: 50%; left: 50%; transform: translate(-50%,-50%); text-align: center;">
-      <div style="font-size: 48px; font-weight: 500; font-variant-numeric: tabular-nums; color: var(--text-primary);">19:42</div>
-      <div style="font-size: 13px; color: var(--text-secondary); margin-top: 4px;">Session 1 of 4</div>
+    <div class="timer-center">
+      <div class="time" id="time">25:00</div>
+      <div class="session-label" id="sessionLabel">Session 1 of 4</div>
     </div>
   </div>
 
-  <div style="display: flex; gap: 10px; justify-content: center; margin-bottom: 1rem;">
-    <button style="flex: 1; height: 48px; border-radius: 12px; border: none; background: #D85A30; color: white; font-size: 15px; font-weight: 500; display: flex; align-items: center; justify-content: center; gap: 6px;"><i class="ti ti-player-pause"></i> Pause</button>
-    <button style="width: 48px; height: 48px; border-radius: 12px; border: 0.5px solid var(--border-strong); background: var(--surface-2); color: var(--text-secondary); display: flex; align-items: center; justify-content: center;" aria-label="Reset"><i class="ti ti-refresh"></i></button>
-    <button style="width: 48px; height: 48px; border-radius: 12px; border: 0.5px solid var(--border-strong); background: var(--surface-2); color: var(--text-secondary); display: flex; align-items: center; justify-content: center;" aria-label="Skip"><i class="ti ti-player-skip-forward"></i></button>
+  <div class="controls">
+    <button class="btn btn-main" id="startBtn" onclick="toggleTimer()">
+      <svg viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z"/></svg>
+      <span id="startLabel">Start</span>
+    </button>
+    <button class="btn btn-icon" onclick="resetTimer()" aria-label="Reset">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M1 4v6h6M3.51 15a9 9 0 1 0 2.13-9.36L1 10"/></svg>
+    </button>
+    <button class="btn btn-icon" onclick="skipSession()" aria-label="Skip">
+      <svg viewBox="0 0 24 24" fill="currentColor"><path d="M5 4l10 8-10 8V4zm12 0h2v16h-2z"/></svg>
+    </button>
   </div>
 
-  <div style="display: flex; align-items: center; justify-content: space-between; padding-top: 0.75rem; border-top: 0.5px solid var(--border);">
-    <div style="font-size: 13px; color: var(--text-secondary);"><i class="ti ti-flame" style="color: #D85A30; vertical-align: -2px;"></i> 3 completed</div>
-    <button style="background: none; border: none; color: var(--text-secondary); display: flex; align-items: center; gap: 4px; font-size: 13px;"><i class="ti ti-settings"></i> Settings</button>
+  <div class="footer">
+    <div class="streak">
+      <svg viewBox="0 0 24 24" fill="currentColor"><path d="M13.5.67s.74 2.65.74 4.8c0 2.06-1.35 3.73-3.41 3.73-2.07 0-3.63-1.67-3.63-3.73l.03-.36C5.21 7.51 4 10.62 4 14c0 4.42 3.58 8 8 8s8-3.58 8-8C20 8.61 17.41 3.8 13.5.67z"/></svg>
+      <span id="streak">0 completed</span>
+    </div>
+    <button class="gear" onclick="openSettings()">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
+      Settings
+    </button>
   </div>
-</div>
+
+  <!-- Settings sheet -->
+  <div class="overlay" id="overlay">
+    <div class="sheet">
+      <h2>Settings</h2>
+      <div class="setting-row">
+        <label>Focus length</label>
+        <div class="stepper">
+          <button onclick="adjust('focus',-5)">−</button>
+          <span id="focusVal">25 min</span>
+          <button onclick="adjust('focus',5)">+</button>
+        </div>
+      </div>
+      <div class="setting-row">
+        <label>Short break</label>
+        <div class="stepper">
+          <button onclick="adjust('short',-1)">−</button>
+          <span id="shortVal">5 min</span>
+          <button onclick="adjust('short',1)">+</button>
+        </div>
+      </div>
+      <div class="setting-row">
+        <label>Long break</label>
+        <div class="stepper">
+          <button onclick="adjust('long',-5)">−</button>
+          <span id="longVal">15 min</span>
+          <button onclick="adjust('long',5)">+</button>
+        </div>
+      </div>
+      <div class="setting-row">
+        <label>Sound effects</label>
+        <div class="toggle on" id="soundToggle" onclick="toggleSound()"><div class="knob"></div></div>
+      </div>
+      <button class="close-btn" onclick="closeSettings()">Done</button>
+    </div>
+  </div>
+
+<script>
+/* ---------- State ---------- */
+const CIRC = 2 * Math.PI * 130; // ring circumference
+let durations = { focus: 25, short: 5, long: 15 };
+let mode = 'focus';        // 'focus' | 'short' | 'long'
+let sessionCount = 1;      // current focus session (1..4)
+let completed = 0;
+let remaining = durations.focus * 60;
+let running = false;
+let ticker = null;
+let soundOn = true;
+
+const $ = id => document.getElementById(id);
+
+/* ---------- Sound engine (Web Audio, no files) ---------- */
+let audioCtx = null;
+function ctx() {
+  if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+  if (audioCtx.state === 'suspended') audioCtx.resume();
+  return audioCtx;
+}
+// short percussive click for buttons
+function playClick() {
+  if (!soundOn) return;
+  const c = ctx(), now = c.currentTime;
+  const o = c.createOscillator(), g = c.createGain();
+  o.type = 'square';
+  o.frequency.setValueAtTime(880, now);
+  o.frequency.exponentialRampToValueAtTime(440, now + 0.05);
+  g.gain.setValueAtTime(0.0001, now);
+  g.gain.exponentialRampToValueAtTime(0.25, now + 0.005);
+  g.gain.exponentialRampToValueAtTime(0.0001, now + 0.08);
+  o.connect(g).connect(c.destination);
+  o.start(now); o.stop(now + 0.09);
+}
+// play a soft melody from a list of [frequency, startOffset, duration]
+function playMelody(notes, type='sine') {
+  if (!soundOn) return;
+  const c = ctx(), base = c.currentTime;
+  notes.forEach(([freq, t, dur]) => {
+    const o = c.createOscillator(), g = c.createGain();
+    o.type = type;
+    o.frequency.value = freq;
+    const start = base + t;
+    g.gain.setValueAtTime(0.0001, start);
+    g.gain.exponentialRampToValueAtTime(0.22, start + 0.04);
+    g.gain.exponentialRampToValueAtTime(0.0001, start + dur);
+    o.connect(g).connect(c.destination);
+    o.start(start); o.stop(start + dur + 0.05);
+  });
+}
+// rising, gentle -> time to focus
+const focusMelody = () => playMelody([
+  [523.25, 0.00, 0.4], // C5
+  [659.25, 0.18, 0.4], // E5
+  [783.99, 0.36, 0.6], // G5
+], 'triangle');
+// descending, relaxing -> time to break
+const breakMelody = () => playMelody([
+  [783.99, 0.00, 0.45], // G5
+  [659.25, 0.20, 0.45], // E5
+  [523.25, 0.40, 0.7],  // C5
+], 'sine');
+
+/* ---------- Rendering ---------- */
+function fmt(s) {
+  const m = Math.floor(s / 60), sec = s % 60;
+  return `${String(m).padStart(2,'0')}:${String(sec).padStart(2,'0')}`;
+}
+function totalForMode() {
+  return durations[mode] * 60;
+}
+function render() {
+  $('time').textContent = fmt(remaining);
+  const frac = remaining / totalForMode();
+  $('ring').style.strokeDashoffset = CIRC * (1 - frac);
+
+  const pill = $('modePill');
+  if (mode === 'focus') {
+    document.body.className = 'focus';
+    pill.textContent = 'FOCUS';
+    $('sessionLabel').textContent = `Session ${sessionCount} of 4`;
+  } else {
+    document.body.className = 'break';
+    pill.textContent = mode === 'long' ? 'LONG BREAK' : 'BREAK';
+    $('sessionLabel').textContent = 'Relax a little';
+  }
+  $('startLabel').textContent = running ? 'Pause' : 'Start';
+  $('startBtn').querySelector('svg').innerHTML = running
+    ? '<path d="M6 4h4v16H6zM14 4h4v16h-4z"/>'   // pause icon
+    : '<path d="M8 5v14l11-7z"/>';                // play icon
+  $('streak').textContent = `${completed} completed`;
+}
+
+/* ---------- Timer logic ---------- */
+function toggleTimer() {
+  playClick();
+  running ? pause() : start();
+}
+function start() {
+  ctx(); // unlock audio on first user gesture
+  running = true;
+  render();
+  ticker = setInterval(() => {
+    remaining--;
+    if (remaining <= 0) { sessionEnd(); }
+    render();
+  }, 1000);
+}
+function pause() {
+  running = false;
+  clearInterval(ticker);
+  render();
+}
+function resetTimer() {
+  playClick();
+  pause();
+  remaining = totalForMode();
+  render();
+}
+function skipSession() {
+  playClick();
+  pause();
+  advance(false);
+}
+function sessionEnd() {
+  clearInterval(ticker);
+  running = false;
+  advance(true);
+}
+// advance to the next mode. `natural` = timer ran out (play melody + count)
+function advance(natural) {
+  if (mode === 'focus') {
+    if (natural) completed++;
+    if (sessionCount >= 4) {
+      mode = 'long';
+      sessionCount = 1;
+    } else {
+      mode = 'short';
+      sessionCount++;
+    }
+    if (natural) breakMelody();   // entering a break
+  } else {
+    mode = 'focus';
+    if (natural) focusMelody();   // back to focus
+  }
+  remaining = totalForMode();
+  render();
+}
+
+/* ---------- Settings ---------- */
+function openSettings() { playClick(); $('overlay').classList.add('open'); }
+function closeSettings() { playClick(); $('overlay').classList.remove('open'); }
+function adjust(which, delta) {
+  playClick();
+  const min = { focus:5, short:1, long:5 };
+  const key = which === 'short' ? 'short' : which === 'long' ? 'long' : 'focus';
+  durations[key] = Math.max(min[key], durations[key] + delta);
+  $('focusVal').textContent = durations.focus + ' min';
+  $('shortVal').textContent = durations.short + ' min';
+  $('longVal').textContent = durations.long + ' min';
+  if (!running) { remaining = totalForMode(); render(); }
+}
+function toggleSound() {
+  soundOn = !soundOn;
+  $('soundToggle').classList.toggle('on', soundOn);
+  if (soundOn) playClick();
+}
+
+/* ---------- Init ---------- */
+render();
+</script>
+</body>
+</html>
